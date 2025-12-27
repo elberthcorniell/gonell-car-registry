@@ -1,0 +1,28 @@
+{
+  "name": "gestiono-app-template",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "elberthcorniell <elberthcorniell@gmail.com>",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start:server": "node ./server/bin/www",
+    "start:app:dev": "cd ./app && yarn dev",
+    "windows:start:app:dev": "cd ./app && yarn windows:dev",
+    "start:app:prod": "cd ./app && yarn build && yarn start",
+    "start:dev": "NODE_ENV=development concurrently \"yarn start:server\" \"yarn start:app:dev\"",
+    "start:prod": "NODE_ENV=production concurrently \"yarn start:server\" \"yarn start:app:prod\"",
+    "app:publish": "NODE_ENV=production node publish.js",
+    "windows:start:dev": "SET NODE_ENV=development && concurrently \"yarn start:server\" \"yarn windows:start:app:dev\"",
+    "windows:start:prod": "SET NODE_ENV=production && concurrently \"yarn start:server\" \"yarn windows:start:app:prod\"",
+    "windows:app:publish": "SET NODE_ENV=production && node publish.js"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  },
+  "dependencies": {
+    "@bitnation-dev/management": "^2.0.5",
+    "@bitnation-dev/service": "^1.0.6",
+    "zod": "^3.23.8"
+  }
+}

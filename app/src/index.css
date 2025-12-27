@@ -1,0 +1,3 @@
+/* @tailwind base; base is already applied in gestiono so it's not needed to be applied twice or it will rewrite some gestiono changes */
+@tailwind components;
+@tailwind utilities;

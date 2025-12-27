@@ -1,0 +1,53 @@
+{
+  "name": "app",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": " NODE_ENV=development npx webpack --watch",
+    "build": "NODE_ENV=production npx webpack ",
+    "windows:dev": "SET NODE_ENV=development && npx webpack --watch",
+    "windows:build": "SET NODE_ENV=production && npx webpack "
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@bitnation-dev/components": "^2.0.18",
+    "@bitnation-dev/management": "^2.1.8",
+    "@bitnation-dev/service": "^1.0.6",
+    "@hookform/resolvers": "^3.3.4",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "axios": "^1.13.2",
+    "clsx": "^2.1.0",
+    "date-fns": "^3.2.0",
+    "dotenv": "^16.3.1",
+    "dotenv-webpack": "^8.0.1",
+    "framer-motion": "^10.18.0",
+    "javascript-time-ago": "^2.5.9",
+    "react": "^18.2.0",
+    "react-date-range": "^2.0.0-alpha.4",
+    "react-dom": "^18.2.0",
+    "react-hook-form": "^7.49.3",
+    "styled-components": "^6.1.0",
+    "ts-loader": "^9.5.0",
+    "typescript": "^5.2.2",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4",
+    "wouter": "^3.9.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.47",
+    "@types/react-dom": "^18.2.18",
+    "css-loader": "^6.9.0",
+    "null-loader": "^4.0.1",
+    "postcss": "^8.4.33",
+    "postcss-loader": "^8.0.0",
+    "postcss-preset-env": "^9.3.0",
+    "style-loader": "^3.3.4",
+    "tailwindcss": "^3.4.1",
+    "webpack-bundle-analyzer": "^4.10.1"
+  }
+}

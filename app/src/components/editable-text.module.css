@@ -1,0 +1,59 @@
+.editable-text {
+    flex-grow: 1;
+}
+
+.editable-text>div {
+    margin-left: 10px;
+}
+
+.editable-text input,
+.editable-text select {
+    background-color: transparent !important;
+    border-color: transparent;
+    transition-duration: 0.3s;
+    cursor: pointer;
+    width: 100%;
+}
+
+.editable-text+div {
+    /* display: none; */
+    animation: slide;
+    animation-duration: 0.3s;
+}
+
+.editable-text:hover input,
+.editable-text:hover select,
+.editable-text input:focus,
+.editable-text select:focus {
+    background-color: var(--color-ui-input) !important;
+    border-color: var(--color-ui-input) !important;
+}
+
+html:global(.dark) .editable-text:hover input,
+html:global(.dark) .editable-text:hover select,
+html:global(.dark) .editable-text input:focus,
+html:global(.dark) .editable-text select:focus {
+    background-color: var(--color-brand-dark-400) !important;
+    border-color: var(--color-brand-dark-400) !important;
+}
+
+/* .editable-text:focus-within+div {
+    display: block;
+}
+
+.editable-text+div:active,
+.editable-text+div:hover {
+    display: block;
+} */
+
+@keyframes slide {
+    0% {
+        opacity: 0;
+        transform: translateX(20px)
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateX(0)
+    }
+}

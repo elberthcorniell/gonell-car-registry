@@ -1,0 +1,38 @@
+version: "3.8"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: gestiono-wordpress-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: 12345678
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3307:3306"
+
+  wordpress:
+    image: wordpress:latest
+    container_name: gestiono-wordpress
+    restart: unless-stopped
+    depends_on:
+      - mysql
+    ports:
+      - "8080:80"
+    environment:
+      WORDPRESS_DB_HOST: mysql:3306
+      WORDPRESS_DB_USER: root
+      WORDPRESS_DB_PASSWORD: 12345678
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_TABLE_PREFIX: wp_
+      WORDPRESS_DEBUG: 1
+    volumes:
+      - wordpress_data:/var/www/html
+
+volumes:
+  wordpress_data:
+  mysql_data:
