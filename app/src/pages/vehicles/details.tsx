@@ -5,7 +5,7 @@ import { ButtonModal } from "@bitnation-dev/components/dist/components/Modal/Mod
 import { useModal } from "@bitnation-dev/components/dist/components/Modal/Provider"
 import Input, { Select } from "@bitnation-dev/components/dist/components/Input/Input"
 import LoadingFlash from "@bitnation-dev/components/dist/components/LoadingFlash"
-import { useForm, useFieldArray } from "react-hook-form"
+import { useForm } from "react-hook-form"
 import { Gestiono } from "@bitnation-dev/management"
 import { useAlert } from "../../hooks/alert"
 import { LayoutColumn } from "@bitnation-dev/management/components/layout/layout-grid"
@@ -41,12 +41,6 @@ import { TrashIcon } from "@bitnation-dev/management/icons"
 const appId = parseInt(process.env.GESTIONO_APP_ID || '0')
 const basePath = `/app/${process.env.GESTIONO_APP_ID}`
 
-const STATUS_OPTIONS = [
-    { value: 'active', label: 'Activo', color: 'bg-emerald-500' },
-    { value: 'inactive', label: 'Inactivo', color: 'bg-amber-500' },
-    { value: 'sold', label: 'Vendido', color: 'bg-slate-500' },
-]
-
 const INVOICE_STATUS: Record<string, { label: string; color: string; textColor: string; bgLight: string }> = {
     PENDING: { label: 'Pendiente', color: 'bg-amber-500', textColor: 'text-amber-700', bgLight: 'bg-amber-50' },
     COMPLETED: { label: 'Pagada', color: 'bg-emerald-500', textColor: 'text-emerald-700', bgLight: 'bg-emerald-50' },
@@ -66,14 +60,6 @@ function formatCurrency(amount: number): string {
         currency: 'DOP',
         minimumFractionDigits: 2
     }).format(amount)
-}
-
-function generateInvoiceNumber(): string {
-    const date = new Date()
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0')
-    return `FAC-${year}${month}-${random}`
 }
 
 const VehicleDetails = () => {
@@ -137,30 +123,6 @@ const VehicleDetails = () => {
             })
         }
     }, [vehicle, alert, router])
-
-    const handleStatusChange = useCallback(async (newStatus: string) => {
-        if (!vehicle) return
-
-        try {
-            await Gestiono.updateAppData({
-                id: vehicle.id,
-                appId,
-                type: 'vehicles.v1',
-                strategy: 'merge',
-                data: { status: newStatus }
-            })
-            vehiclesData.update()
-            alert?.open({
-                msg: 'Estado actualizado',
-                variant: 'success'
-            })
-        } catch (error) {
-            alert?.open({
-                msg: 'Error al actualizar el estado',
-                variant: 'error'
-            })
-        }
-    }, [vehicle, vehiclesData, alert])
 
     if (vehiclesData.loading) {
         return (
@@ -356,7 +318,6 @@ const VehicleDetails = () => {
                                         key={invoice.id} 
                                         invoice={invoice}
                                         index={index}
-                                        onUpdate={() => invoicesData.update()}
                                     />
                                 ))
                             }
@@ -370,56 +331,13 @@ const VehicleDetails = () => {
 
 const InvoiceCard = ({ 
     invoice, 
-    index,
-    onUpdate 
+    index
 }: { 
     invoice: PendingRecordItem
     index: number
-    onUpdate: () => void 
 }) => {
-    const alert = useAlert()
     const [expanded, setExpanded] = useState(false)
     const statusConfig = INVOICE_STATUS[invoice.state] || INVOICE_STATUS.PENDING
-
-    const handleStatusChange = useCallback(async (newState: 'PENDING' | 'COMPLETED' | 'CANCELED') => {
-        try {
-            await Gestiono.updatePendingRecord({
-                id: invoice.id,
-                state: newState,
-            })
-            onUpdate()
-            alert?.open({
-                msg: `Factura marcada como ${INVOICE_STATUS[newState].label.toLowerCase()}`,
-                variant: 'success'
-            })
-        } catch (error) {
-            alert?.open({
-                msg: 'Error al actualizar la factura',
-                variant: 'error'
-            })
-        }
-    }, [invoice.id, onUpdate, alert])
-
-    const handleDelete = useCallback(async () => {
-        const confirmed = window.confirm('¿Eliminar esta factura?')
-        if (!confirmed) return
-
-        try {
-            await Gestiono.deletePendingRecord({
-                id: invoice.id
-            })
-            onUpdate()
-            alert?.open({
-                msg: 'Factura eliminada',
-                variant: 'success'
-            })
-        } catch (error) {
-            alert?.open({
-                msg: 'Error al eliminar la factura',
-                variant: 'error'
-            })
-        }
-    }, [invoice.id, onUpdate, alert])
 
     return (
         <motion.div
@@ -517,234 +435,13 @@ const InvoiceCard = ({
 
                     {/* Actions */}
                     <div className="flex gap-2 mt-4 pt-4 border-t border-gray-200">
-                        {invoice.state === 'PENDING' && (
-                            <button
-                                onClick={() => handleStatusChange('COMPLETED')}
-                                className="px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors"
-                            >
-                                Marcar como Pagada
-                            </button>
-                        )}
-                        {invoice.state === 'COMPLETED' && (
-                            <button
-                                onClick={() => handleStatusChange('PENDING')}
-                                className="px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors"
-                            >
-                                Marcar como Pendiente
-                            </button>
-                        )}
-                        {invoice.state !== 'CANCELED' && (
-                            <button
-                                onClick={() => handleStatusChange('CANCELED')}
-                                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors"
-                            >
-                                Cancelar
-                            </button>
-                        )}
-                        <button
-                            onClick={handleDelete}
-                            className="px-4 py-2 bg-red-100 text-red-600 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors ml-auto"
-                        >
-                            Eliminar
-                        </button>
+                        <a href={`/accounting/pending-records/${invoice.id}`} target="_blank">
+                            Ver factura
+                        </a>
                     </div>
                 </motion.div>
             )}
         </motion.div>
-    )
-}
-
-const CreateInvoiceModal = ({ vehicle, onSubmit }: { vehicle: Vehicle; onSubmit: () => void }) => {
-    const alert = useAlert()
-    const modal = useModal('create-invoice')
-    const { register, handleSubmit, control, watch, formState: { errors, isSubmitting }, reset } = useForm<InvoiceFormData>({
-        mode: 'onBlur',
-        defaultValues: {
-            items: [{ description: '', quantity: '1', unitPrice: '' }],
-            taxRate: '18',
-            notes: ''
-        }
-    })
-
-    const { fields, append, remove } = useFieldArray({
-        control,
-        name: 'items'
-    })
-
-    const watchedItems = watch('items')
-    const watchedTaxRate = watch('taxRate')
-
-    // Calculate totals
-    const subtotal = watchedItems.reduce((sum, item) => {
-        const qty = parseFloat(item.quantity) || 0
-        const price = parseFloat(item.unitPrice) || 0
-        return sum + (qty * price)
-    }, 0)
-
-    const taxRate = parseFloat(watchedTaxRate) || 0
-    const tax = subtotal * (taxRate / 100)
-    const total = subtotal + tax
-
-    const submit = useCallback(async (data: InvoiceFormData) => {
-        const items: InvoiceItem[] = data.items.map(item => ({
-            description: item.description.trim(),
-            quantity: parseFloat(item.quantity) || 0,
-            unitPrice: parseFloat(item.unitPrice) || 0,
-            total: (parseFloat(item.quantity) || 0) * (parseFloat(item.unitPrice) || 0)
-        })).filter(item => item.description && item.quantity > 0)
-
-        if (items.length === 0) {
-            alert?.open({
-                msg: 'Agrega al menos un item a la factura',
-                variant: 'error'
-            })
-            return
-        }
-
-        const subtotalCalc = items.reduce((sum, item) => sum + item.total, 0)
-        const taxRateCalc = parseFloat(data.taxRate) || 0
-        const taxCalc = subtotalCalc * (taxRateCalc / 100)
-
-        try {
-            await Gestiono.insertAppData({
-                appId,
-                type: 'invoices.v1',
-                data: {
-                    invoiceNumber: generateInvoiceNumber(),
-                    vehiclePlate: vehicle.data.plate,
-                    vehicleId: vehicle.id,
-                    items,
-                    subtotal: subtotalCalc,
-                    tax: taxCalc,
-                    taxRate: taxRateCalc,
-                    total: subtotalCalc + taxCalc,
-                    notes: data.notes?.trim() || undefined,
-                    status: 'pending' as const,
-                    createdAt: new Date().toISOString()
-                }
-            })
-
-            onSubmit()
-            reset()
-            modal?.close()
-            alert?.open({
-                msg: 'Factura creada exitosamente',
-                variant: 'success'
-            })
-        } catch (error) {
-            alert?.open({
-                msg: 'Error al crear la factura',
-                variant: 'error'
-            })
-        }
-    }, [vehicle, onSubmit, modal, alert, reset])
-
-    return (
-        <ButtonModal id="create-invoice" cta="Nueva Factura">
-            <h2 className="text-2xl font-bold mb-2">Crear Factura</h2>
-            <p className="text-sm text-gray-500 mb-2">
-                Vehículo: <span className="font-mono font-semibold text-blue-600">{vehicle.data.plate}</span>
-            </p>
-            <form onSubmit={handleSubmit(submit)} className="space-y-4">
-                {/* Items */}
-                <div>
-                    <label className="text-sm font-medium text-gray-700 mb-2 block">
-                        Items de la factura
-                    </label>
-                    
-                    {fields.map((field, index) => (
-                        <div key={field.id} className="flex gap-2 mb-2">
-                            <div className="flex-1">
-                                <Input
-                                    {...register(`items.${index}.description` as const, {
-                                        required: 'Requerido'
-                                    })}
-                                    placeholder="Descripción del servicio"
-                                    error={errors.items?.[index]?.description?.message}
-                                />
-                            </div>
-                            <div className="w-20">
-                                <Input
-                                    {...register(`items.${index}.quantity` as const)}
-                                    type="number"
-                                    placeholder="Cant"
-                                    min="1"
-                                />
-                            </div>
-                            <div className="w-32">
-                                <Input
-                                    {...register(`items.${index}.unitPrice` as const, {
-                                        required: 'Requerido'
-                                    })}
-                                    type="number"
-                                    placeholder="Precio"
-                                    step="0.01"
-                                    error={errors.items?.[index]?.unitPrice?.message}
-                                />
-                            </div>
-                            {fields.length > 1 && (
-                                <button
-                                    type="button"
-                                    onClick={() => remove(index)}
-                                    className="px-3 py-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                >
-                                    ✕
-                                </button>
-                            )}
-                        </div>
-                    ))}
-
-                    <button
-                        type="button"
-                        onClick={() => append({ description: '', quantity: '1', unitPrice: '' })}
-                        className="text-sm text-blue-600 hover:text-blue-700 font-medium mt-2"
-                    >
-                        + Agregar item
-                    </button>
-                </div>
-
-                {/* Tax Rate */}
-                <div className="w-32">
-                    <Input
-                        {...register('taxRate')}
-                        label="ITBIS (%)"
-                        type="number"
-                        placeholder="18"
-                        min="0"
-                        max="100"
-                    />
-                </div>
-
-                {/* Totals Preview */}
-                <div className="bg-gray-50 rounded-xl p-4 space-y-2">
-                    <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Subtotal</span>
-                        <span className="text-gray-700">{formatCurrency(subtotal)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">ITBIS ({taxRate}%)</span>
-                        <span className="text-gray-700">{formatCurrency(tax)}</span>
-                    </div>
-                    <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-300">
-                        <span>Total</span>
-                        <span className="text-blue-600">{formatCurrency(total)}</span>
-                    </div>
-                </div>
-
-                {/* Notes */}
-                <Input
-                    {...register('notes')}
-                    label="Notas (opcional)"
-                    placeholder="Observaciones o detalles adicionales..."
-                />
-
-                <div className="pt-4">
-                    <Button type="submit" loading={isSubmitting}>
-                        Crear Factura
-                    </Button>
-                </div>
-            </form>
-        </ButtonModal>
     )
 }
 
