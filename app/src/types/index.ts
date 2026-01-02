@@ -13,8 +13,6 @@ declare global {
             color: string
             customColor?: string
             vin?: string
-            ownerId: number
-            ownerName: string
             notes?: string
             registeredAt: string
             status: 'active' | 'inactive' | 'sold'
@@ -31,7 +29,6 @@ declare global {
         color: string
         customColor?: string
         vin?: string
-        ownerId: string
         notes?: string
     }
 

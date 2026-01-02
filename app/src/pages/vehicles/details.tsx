@@ -7,7 +7,6 @@ import Input, { Select } from "@bitnation-dev/components/dist/components/Input/I
 import LoadingFlash from "@bitnation-dev/components/dist/components/LoadingFlash"
 import { useForm, useFieldArray } from "react-hook-form"
 import { Gestiono } from "@bitnation-dev/management"
-import { useOrganization } from "@bitnation-dev/management"
 import { useAlert } from "../../hooks/alert"
 import { LayoutColumn } from "@bitnation-dev/management/components/layout/layout-grid"
 import { BreadcrumbAndHeader } from "@bitnation-dev/management/components/breadcrumbs"
@@ -17,9 +16,27 @@ import { motion } from "framer-motion"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { LinkConstants } from "@bitnation-dev/management/consts/links"
-import { BeneficiarySelect } from "@bitnation-dev/management/src/forms/beneficiary-select"
 import { VEHICLE_BRANDS, VEHICLE_MODELS, VEHICLE_COLORS, getBrandLabel, getModelLabel, getColorHex } from "./list"
-import { AdvancedSearchFilter } from "node_modules/@bitnation-dev/management/dist/common"
+import { AdvancedSearchFilter, GestionoPendingRecord } from "node_modules/@bitnation-dev/management/dist/common"
+
+type InvoiceState = "PENDING" | "ARCHIVED" | "COMPLETED" | "ACTIVE" | "PAUSED" | "CANCELED" | "PAST_DUE" | "UNPAID" | "ENDED" | "INVOICE_MISSING"
+
+type PendingRecordItem = Omit<GestionoPendingRecord, "payments" | "labels"> & {
+    subTotalWithoutDiscount: number
+    afterTaxesDiscount: number
+    preTaxesDiscount: number
+    creditDue: number
+    state: InvoiceState
+    labels?: string[]
+    elements?: {
+        id: number
+        description: string
+        quantity: number
+        price: number
+        unit: string
+    }[]
+}
+import { TrashIcon } from "@bitnation-dev/management/icons"
 
 const appId = parseInt(process.env.GESTIONO_APP_ID || '0')
 const basePath = `/app/${process.env.GESTIONO_APP_ID}`
@@ -30,10 +47,12 @@ const STATUS_OPTIONS = [
     { value: 'sold', label: 'Vendido', color: 'bg-slate-500' },
 ]
 
-const INVOICE_STATUS = {
-    pending: { label: 'Pendiente', color: 'bg-amber-500', textColor: 'text-amber-700', bgLight: 'bg-amber-50' },
-    paid: { label: 'Pagada', color: 'bg-emerald-500', textColor: 'text-emerald-700', bgLight: 'bg-emerald-50' },
-    cancelled: { label: 'Cancelada', color: 'bg-red-500', textColor: 'text-red-700', bgLight: 'bg-red-50' },
+const INVOICE_STATUS: Record<string, { label: string; color: string; textColor: string; bgLight: string }> = {
+    PENDING: { label: 'Pendiente', color: 'bg-amber-500', textColor: 'text-amber-700', bgLight: 'bg-amber-50' },
+    COMPLETED: { label: 'Pagada', color: 'bg-emerald-500', textColor: 'text-emerald-700', bgLight: 'bg-emerald-50' },
+    CANCELED: { label: 'Cancelada', color: 'bg-red-500', textColor: 'text-red-700', bgLight: 'bg-red-50' },
+    ARCHIVED: { label: 'Archivada', color: 'bg-gray-500', textColor: 'text-gray-700', bgLight: 'bg-gray-50' },
+    PAST_DUE: { label: 'Vencida', color: 'bg-red-600', textColor: 'text-red-800', bgLight: 'bg-red-50' },
 }
 
 function getColorLabel(colorName: string, customColor?: string): string {
@@ -75,14 +94,14 @@ const VehicleDetails = () => {
     const vehicles = useMemo(() => (vehiclesData.data as unknown as Vehicle[] | undefined) || [], [vehiclesData.data])
     const vehicle = useMemo(() => vehicles.find(v => v.id === vehicleId) as Vehicle | undefined, [vehicles, vehicleId])
 
-    const invoicesData = useGestiono('getPendingRecords', {
+    const invoicesData = useGestiono('v2GetPendingRecords', {
         query: {
             type: 'INVOICE',
-            advancedSearch: [{
+            advancedSearch: JSON.stringify([{
                 field: '@plate',
                 value: vehicle?.data.plate || '',
                 method: '='
-            } satisfies AdvancedSearchFilter]
+            } satisfies AdvancedSearchFilter]) as unknown as AdvancedSearchFilter[]
         },
     }, {
         cache: true,
@@ -93,10 +112,7 @@ const VehicleDetails = () => {
         invoicesData.update()
     }, [vehicle])
 
-    const allInvoices = (invoicesData.data as unknown as Invoice[] | undefined) || []
-    const vehicleInvoices = vehicle 
-        ? allInvoices.filter(inv => inv.data.vehiclePlate === vehicle.data.plate)
-        : []
+    const vehicleInvoices = invoicesData.data?.items || []
 
     const handleDelete = useCallback(async () => {
         if (!vehicle) return
@@ -187,13 +203,8 @@ const VehicleDetails = () => {
         )
     }
 
-    const totalPending = vehicleInvoices
-        .filter(inv => inv.data.status === 'pending')
-        .reduce((sum, inv) => sum + inv.data.total, 0)
-
-    const totalPaid = vehicleInvoices
-        .filter(inv => inv.data.status === 'paid')
-        .reduce((sum, inv) => sum + inv.data.total, 0)
+    const totalPending = invoicesData.data?.resume.toCharge || 0
+    const totalPaid = invoicesData.data?.resume.totalPaid || 0
 
     const brandDisplay = getBrandLabel(vehicle.data.brand, vehicle.data.customBrand)
     const modelDisplay = getModelLabel(vehicle.data.brand, vehicle.data.model, vehicle.data.customModel)
@@ -207,8 +218,8 @@ const VehicleDetails = () => {
                 actions={
                     <div className="flex gap-2">
                         <EditVehicleModal vehicle={vehicle} onSubmit={() => vehiclesData.update()} />
-                        <Button variant="secondary" onClick={handleDelete}>
-                            Eliminar
+                        <Button fit variant="secondary" onClick={handleDelete}>
+                            <TrashIcon />
                         </Button>
                     </div>
                 }
@@ -252,57 +263,11 @@ const VehicleDetails = () => {
                             </div>
                         )}
                     </div>
-
-                    <div className="mt-6 pt-6 border-t border-gray-100">
-                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">
-                            Estado
-                        </label>
-                        <div className="flex gap-2">
-                            {STATUS_OPTIONS.map(status => (
-                                <button
-                                    key={status.value}
-                                    onClick={() => handleStatusChange(status.value)}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                                        vehicle.data.status === status.value
-                                            ? `${status.color} text-white shadow-md`
-                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                    }`}
-                                >
-                                    {status.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
                 </motion.div>
-            </LayoutColumn>
-
-            {/* Owner & Registration Info */}
-            <LayoutColumn size={2}>
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                    className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm"
-                >
-                    <h3 className="text-lg font-semibold text-gray-700 mb-6">Propietario</h3>
-                    
-                    <div className="space-y-4">
-                        <InfoItem 
-                            label="Nombre" 
-                            value={vehicle.data.ownerName} 
-                            icon="👤"
-                        />
-                        <p className="text-xs text-gray-400">
-                            ID de contacto: #{vehicle.data.ownerId}
-                        </p>
-                    </div>
-                </motion.div>
-
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2 }}
-                    className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm mt-4"
                 >
                     <h3 className="text-lg font-semibold text-gray-700 mb-4">Registro</h3>
                     
@@ -324,7 +289,6 @@ const VehicleDetails = () => {
                     )}
                 </motion.div>
             </LayoutColumn>
-
             {/* Invoices Section - Full Width */}
             <LayoutColumn size={1}>
                 <motion.div
@@ -339,10 +303,9 @@ const VehicleDetails = () => {
                                 Historial de facturas asociadas a este vehículo
                             </p>
                         </div>
-                        <CreateInvoiceModal 
-                            vehicle={vehicle} 
-                            onSubmit={() => invoicesData.update()} 
-                        />
+                        <Button onClick={() => window.open(`/accounting/pending-records/add?isSell=true&clientdata.plate=${vehicle.data.plate}`, '_blank')}>
+                            Facturar
+                        </Button>
                     </div>
 
                     {/* Invoice Summary Stats */}
@@ -387,7 +350,7 @@ const VehicleDetails = () => {
                     ) : (
                         <div className="space-y-3">
                             {vehicleInvoices
-                                .sort((a, b) => new Date(b.data.createdAt).getTime() - new Date(a.data.createdAt).getTime())
+                                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                                 .map((invoice, index) => (
                                     <InvoiceCard 
                                         key={invoice.id} 
@@ -410,29 +373,23 @@ const InvoiceCard = ({
     index,
     onUpdate 
 }: { 
-    invoice: Invoice
+    invoice: PendingRecordItem
     index: number
     onUpdate: () => void 
 }) => {
     const alert = useAlert()
     const [expanded, setExpanded] = useState(false)
-    const statusConfig = INVOICE_STATUS[invoice.data.status]
+    const statusConfig = INVOICE_STATUS[invoice.state] || INVOICE_STATUS.PENDING
 
-    const handleStatusChange = useCallback(async (newStatus: 'pending' | 'paid' | 'cancelled') => {
+    const handleStatusChange = useCallback(async (newState: 'PENDING' | 'COMPLETED' | 'CANCELED') => {
         try {
-            await Gestiono.updateAppData({
+            await Gestiono.updatePendingRecord({
                 id: invoice.id,
-                appId,
-                type: 'invoices.v1',
-                strategy: 'merge',
-                data: { 
-                    status: newStatus,
-                    paidAt: newStatus === 'paid' ? new Date().toISOString() : undefined
-                }
+                state: newState,
             })
             onUpdate()
             alert?.open({
-                msg: `Factura marcada como ${INVOICE_STATUS[newStatus].label.toLowerCase()}`,
+                msg: `Factura marcada como ${INVOICE_STATUS[newState].label.toLowerCase()}`,
                 variant: 'success'
             })
         } catch (error) {
@@ -448,9 +405,8 @@ const InvoiceCard = ({
         if (!confirmed) return
 
         try {
-            await Gestiono.deleteAppData({
-                appId,
-                appDataId: invoice.id
+            await Gestiono.deletePendingRecord({
+                id: invoice.id
             })
             onUpdate()
             alert?.open({
@@ -483,10 +439,10 @@ const InvoiceCard = ({
                         <div className={`w-2 h-2 rounded-full ${statusConfig.color}`} />
                         <div>
                             <p className="font-mono font-semibold text-gray-800">
-                                {invoice.data.invoiceNumber}
+                                #{invoice.id}
                             </p>
                             <p className="text-xs text-gray-500">
-                                {format(new Date(invoice.data.createdAt), "d MMM yyyy, HH:mm", { locale: es })}
+                                {format(new Date(invoice.date), "d MMM yyyy", { locale: es })}
                             </p>
                         </div>
                     </div>
@@ -495,7 +451,7 @@ const InvoiceCard = ({
                             {statusConfig.label}
                         </span>
                         <p className="font-bold text-gray-800 text-lg">
-                            {formatCurrency(invoice.data.total)}
+                            {formatCurrency(invoice.amount)}
                         </p>
                         <span className={`text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}>
                             ▼
@@ -510,78 +466,76 @@ const InvoiceCard = ({
                     animate={{ opacity: 1, height: 'auto' }}
                     className="border-t border-gray-100 bg-gray-50 p-4"
                 >
-                    {/* Items Table */}
-                    <table className="w-full mb-4">
-                        <thead>
-                            <tr className="text-xs text-gray-500 uppercase tracking-wide">
-                                <th className="text-left pb-2">Descripción</th>
-                                <th className="text-right pb-2">Cant.</th>
-                                <th className="text-right pb-2">Precio Unit.</th>
-                                <th className="text-right pb-2">Total</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {invoice.data.items.map((item, i) => (
-                                <tr key={i} className="border-t border-gray-200">
-                                    <td className="py-2 text-gray-700">{item.description}</td>
-                                    <td className="py-2 text-right text-gray-600">{item.quantity}</td>
-                                    <td className="py-2 text-right text-gray-600">{formatCurrency(item.unitPrice)}</td>
-                                    <td className="py-2 text-right font-medium text-gray-800">{formatCurrency(item.total)}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                    {/* Description */}
+                    {invoice.description && (
+                        <div className="mb-4">
+                            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Descripción</p>
+                            <p className="text-sm text-gray-700">{invoice.description}</p>
+                        </div>
+                    )}
 
                     {/* Totals */}
                     <div className="border-t border-gray-200 pt-3 space-y-1">
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-500">Subtotal</span>
-                            <span className="text-gray-700">{formatCurrency(invoice.data.subtotal)}</span>
+                            <span className="text-gray-700">{formatCurrency(invoice.subTotal)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                            <span className="text-gray-500">ITBIS ({invoice.data.taxRate}%)</span>
-                            <span className="text-gray-700">{formatCurrency(invoice.data.tax)}</span>
+                            <span className="text-gray-500">Impuestos</span>
+                            <span className="text-gray-700">{formatCurrency(invoice.taxes)}</span>
                         </div>
                         <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-300">
                             <span>Total</span>
-                            <span>{formatCurrency(invoice.data.total)}</span>
+                            <span>{formatCurrency(invoice.amount)}</span>
                         </div>
+                        {invoice.paid > 0 && (
+                            <div className="flex justify-between text-sm text-emerald-600">
+                                <span>Pagado</span>
+                                <span>{formatCurrency(invoice.paid)}</span>
+                            </div>
+                        )}
+                        {invoice.dueToPay > 0 && (
+                            <div className="flex justify-between text-sm text-amber-600 font-medium">
+                                <span>Por pagar</span>
+                                <span>{formatCurrency(invoice.dueToPay)}</span>
+                            </div>
+                        )}
                     </div>
 
-                    {invoice.data.notes && (
+                    {invoice.notes && (
                         <div className="mt-4 p-3 bg-white rounded-lg">
                             <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Notas</p>
-                            <p className="text-sm text-gray-700">{invoice.data.notes}</p>
+                            <p className="text-sm text-gray-700">{invoice.notes}</p>
                         </div>
                     )}
 
-                    {invoice.data.paidAt && (
+                    {invoice.state === 'COMPLETED' && (
                         <p className="text-xs text-emerald-600 mt-3">
-                            ✓ Pagada el {format(new Date(invoice.data.paidAt), "d 'de' MMMM, yyyy 'a las' HH:mm", { locale: es })}
+                            ✓ Factura completada
                         </p>
                     )}
 
                     {/* Actions */}
                     <div className="flex gap-2 mt-4 pt-4 border-t border-gray-200">
-                        {invoice.data.status === 'pending' && (
+                        {invoice.state === 'PENDING' && (
                             <button
-                                onClick={() => handleStatusChange('paid')}
+                                onClick={() => handleStatusChange('COMPLETED')}
                                 className="px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors"
                             >
                                 Marcar como Pagada
                             </button>
                         )}
-                        {invoice.data.status === 'paid' && (
+                        {invoice.state === 'COMPLETED' && (
                             <button
-                                onClick={() => handleStatusChange('pending')}
+                                onClick={() => handleStatusChange('PENDING')}
                                 className="px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors"
                             >
                                 Marcar como Pendiente
                             </button>
                         )}
-                        {invoice.data.status !== 'cancelled' && (
+                        {invoice.state !== 'CANCELED' && (
                             <button
-                                onClick={() => handleStatusChange('cancelled')}
+                                onClick={() => handleStatusChange('CANCELED')}
                                 className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors"
                             >
                                 Cancelar
@@ -691,10 +645,6 @@ const CreateInvoiceModal = ({ vehicle, onSubmit }: { vehicle: Vehicle; onSubmit:
             <p className="text-sm text-gray-500 mb-2">
                 Vehículo: <span className="font-mono font-semibold text-blue-600">{vehicle.data.plate}</span>
             </p>
-            <p className="text-sm text-gray-500 mb-6">
-                Propietario: {vehicle.data.ownerName}
-            </p>
-
             <form onSubmit={handleSubmit(submit)} className="space-y-4">
                 {/* Items */}
                 <div>
@@ -821,7 +771,6 @@ const InfoItem = ({
 const EditVehicleModal = ({ vehicle, onSubmit }: { vehicle: Vehicle; onSubmit: () => void }) => {
     const alert = useAlert()
     const modal = useModal('edit-vehicle')
-    const { beneficiaries } = useOrganization()
     const { register, handleSubmit, formState: { errors, isSubmitting }, watch, setValue } = useForm<VehicleFormData>({
         mode: 'onBlur',
         defaultValues: {
@@ -834,7 +783,6 @@ const EditVehicleModal = ({ vehicle, onSubmit }: { vehicle: Vehicle; onSubmit: (
             color: vehicle.data.color,
             customColor: vehicle.data.customColor || '',
             vin: vehicle.data.vin || '',
-            ownerId: vehicle.data.ownerId?.toString() || '',
             notes: vehicle.data.notes || '',
         }
     })
@@ -842,21 +790,10 @@ const EditVehicleModal = ({ vehicle, onSubmit }: { vehicle: Vehicle; onSubmit: (
     const watchedBrand = watch('brand')
     const watchedModel = watch('model')
     const watchedColor = watch('color')
-    const watchedOwnerId = watch('ownerId')
 
     const availableModels = VEHICLE_MODELS[watchedBrand] || VEHICLE_MODELS.default
 
     const submit = useCallback(async (data: VehicleFormData) => {
-        const selectedBeneficiary = beneficiaries.data?.find((b: any) => b.id === Number(data.ownerId))
-        
-        if (!selectedBeneficiary) {
-            alert?.open({
-                msg: 'Selecciona un propietario',
-                variant: 'error'
-            })
-            return
-        }
-
         try {
             await Gestiono.updateAppData({
                 id: vehicle.id,
@@ -873,8 +810,6 @@ const EditVehicleModal = ({ vehicle, onSubmit }: { vehicle: Vehicle; onSubmit: (
                     color: data.color,
                     customColor: data.color === 'other' ? data.customColor?.trim() : undefined,
                     vin: data.vin?.trim() || undefined,
-                    ownerId: Number(data.ownerId),
-                    ownerName: selectedBeneficiary.name,
                     notes: data.notes?.trim() || undefined,
                 }
             })
@@ -891,7 +826,7 @@ const EditVehicleModal = ({ vehicle, onSubmit }: { vehicle: Vehicle; onSubmit: (
                 variant: 'error'
             })
         }
-    }, [vehicle.id, onSubmit, modal, alert, beneficiaries.data])
+    }, [vehicle.id, onSubmit, modal, alert])
 
     const currentYear = new Date().getFullYear()
 
@@ -1051,21 +986,6 @@ const EditVehicleModal = ({ vehicle, onSubmit }: { vehicle: Vehicle; onSubmit: (
                         error={errors.customColor?.message}
                     />
                 )}
-
-                <div className="border-t border-gray-200 pt-4 mt-4">
-                    <h3 className="font-medium text-gray-700 mb-3">Propietario</h3>
-                    
-                    <BeneficiarySelect
-                        value={watchedOwnerId}
-                        setValue={(key, value) => {
-                            setValue('ownerId', value)
-                        }}
-                        label="Propietario *"
-                    />
-                    {errors.ownerId?.message && (
-                        <p className="text-red-500 text-sm mt-1">{errors.ownerId.message}</p>
-                    )}
-                </div>
 
                 <Input
                     {...register('notes')}

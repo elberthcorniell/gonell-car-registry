@@ -7,7 +7,6 @@ import Input, { Select } from "@bitnation-dev/components/dist/components/Input/I
 import LoadingFlash from "@bitnation-dev/components/dist/components/LoadingFlash"
 import { useForm } from "react-hook-form"
 import { Gestiono } from "@bitnation-dev/management"
-import { useOrganization } from "@bitnation-dev/management"
 import { useAlert } from "../../hooks/alert"
 import { LayoutColumn } from "@bitnation-dev/management/components/layout/layout-grid"
 import { LinkConstants } from "@bitnation-dev/management/consts/links"
@@ -15,7 +14,6 @@ import { BreadcrumbAndHeader } from "@bitnation-dev/management/components/breadc
 import { useGestiono } from "@bitnation-dev/management/gestiono"
 import { useRouter } from "../../components/router"
 import { motion } from "framer-motion"
-import { BeneficiarySelect } from "@bitnation-dev/management/src/forms/beneficiary-select"
 
 const appId = parseInt(process.env.GESTIONO_APP_ID || '0')
 const basePath = `/app/${process.env.GESTIONO_APP_ID}`
@@ -141,8 +139,7 @@ const VehiclesList = () => {
         return (
             vehicle.data.plate.toLowerCase().includes(searchLower) ||
             brandLabel.toLowerCase().includes(searchLower) ||
-            modelLabel.toLowerCase().includes(searchLower) ||
-            vehicle.data.ownerName.toLowerCase().includes(searchLower)
+            modelLabel.toLowerCase().includes(searchLower)
         )
     })
 
@@ -160,7 +157,7 @@ const VehiclesList = () => {
                 <div className="mb-6">
                     <Input
                         label=""
-                        placeholder="🔍 Buscar por placa, marca, modelo o propietario..."
+                        placeholder="🔍 Buscar por placa, marca o modelo..."
                         value={search}
                         onChange={(e) => setSearch((e.target as HTMLInputElement).value)}
                     />
@@ -224,10 +221,6 @@ const VehiclesList = () => {
                             <p className="text-gray-500 text-sm">
                                 Año: {vehicle.data.year}
                             </p>
-                            <div className="flex items-center gap-2 text-gray-600 text-sm pt-2 border-t border-gray-100">
-                                <span className="text-gray-400">👤</span>
-                                {vehicle.data.ownerName}
-                            </div>
                         </div>
 
                         <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -276,7 +269,6 @@ function getColorHex(colorName: string): string {
 const RegisterVehicleModal = ({ onSubmit }: { onSubmit: () => void }) => {
     const alert = useAlert()
     const modal = useModal('register-vehicle')
-    const { beneficiaries } = useOrganization()
     const { register, handleSubmit, formState: { errors, isSubmitting }, reset, watch, setValue } = useForm<VehicleFormData>({
         mode: 'onBlur',
         defaultValues: {
@@ -289,21 +281,10 @@ const RegisterVehicleModal = ({ onSubmit }: { onSubmit: () => void }) => {
     const watchedBrand = watch('brand')
     const watchedModel = watch('model')
     const watchedColor = watch('color')
-    const watchedOwnerId = watch('ownerId')
 
     const availableModels = VEHICLE_MODELS[watchedBrand] || VEHICLE_MODELS.default
 
     const submit = useCallback(async (data: VehicleFormData) => {
-        const selectedBeneficiary = beneficiaries.data?.find((b: any) => b.id === Number(data.ownerId))
-        
-        if (!selectedBeneficiary) {
-            alert?.open({
-                msg: 'Selecciona un propietario',
-                variant: 'error'
-            })
-            return
-        }
-
         try {
             await Gestiono.insertAppData({
                 appId,
@@ -318,8 +299,6 @@ const RegisterVehicleModal = ({ onSubmit }: { onSubmit: () => void }) => {
                     color: data.color,
                     customColor: data.color === 'other' ? data.customColor?.trim() : undefined,
                     vin: data.vin?.trim() || undefined,
-                    ownerId: Number(data.ownerId),
-                    ownerName: selectedBeneficiary.name,
                     notes: data.notes?.trim() || undefined,
                     registeredAt: new Date().toISOString(),
                     status: 'active' as const
@@ -339,7 +318,7 @@ const RegisterVehicleModal = ({ onSubmit }: { onSubmit: () => void }) => {
                 variant: 'error'
             })
         }
-    }, [onSubmit, modal, alert, reset, beneficiaries.data])
+    }, [onSubmit, modal, alert, reset])
 
     const currentYear = new Date().getFullYear()
 
@@ -499,21 +478,6 @@ const RegisterVehicleModal = ({ onSubmit }: { onSubmit: () => void }) => {
                         error={errors.customColor?.message}
                     />
                 )}
-
-                <div className="border-t border-gray-200 pt-4 mt-4">
-                    <h3 className="font-medium text-gray-700 mb-3">Propietario</h3>
-                    
-                    <BeneficiarySelect
-                        value={watchedOwnerId}
-                        setValue={(key, value) => {
-                            setValue('ownerId', value)
-                        }}
-                        label="Propietario *"
-                    />
-                    {errors.ownerId?.message && (
-                        <p className="text-red-500 text-sm mt-1">{errors.ownerId.message}</p>
-                    )}
-                </div>
 
                 <Input
                     {...register('notes')}

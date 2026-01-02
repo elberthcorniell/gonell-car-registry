@@ -87,7 +87,7 @@ export const Root = () => {
     return (
         <ThemeProvider theme={theme.value || 'light'}>
             <ModalProvider>
-                <UserProvider>
+                <UserProvider defaultRedirectPath={basePath}>
                     <GestionoProvider pathname="/">
                         <LayoutGrid>
                             <Switch>
