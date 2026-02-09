@@ -5,6 +5,7 @@ declare global {
         id: number
         data: {
             plate: string
+            client?: string
             brand: string
             customBrand?: string
             model: string
@@ -21,6 +22,7 @@ declare global {
 
     export type VehicleFormData = {
         plate: string
+        client: string
         brand: string
         customBrand?: string
         model: string
@@ -68,4 +70,4 @@ declare global {
     }
 }
 
-export {}
+export { }

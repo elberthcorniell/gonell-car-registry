@@ -120,7 +120,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 const VehiclesList = () => {
     const router = useRouter()
     const [search, setSearch] = useState('')
-    
+
     const vehiclesData = useGestiono('getAppData', {
         appId,
         type: 'vehicles.v1'
@@ -130,7 +130,7 @@ const VehiclesList = () => {
     })
 
     const vehicles = (vehiclesData.data as unknown as Vehicle[] | undefined) || []
-    
+
     const filteredVehicles = vehicles.filter(vehicle => {
         if (!search) return true
         const searchLower = search.toLowerCase()
@@ -138,6 +138,7 @@ const VehiclesList = () => {
         const modelLabel = getModelLabel(vehicle.data.brand, vehicle.data.model, vehicle.data.customModel)
         return (
             vehicle.data.plate.toLowerCase().includes(searchLower) ||
+            (vehicle.data.client?.toLowerCase().includes(searchLower)) ||
             brandLabel.toLowerCase().includes(searchLower) ||
             modelLabel.toLowerCase().includes(searchLower)
         )
@@ -152,12 +153,12 @@ const VehiclesList = () => {
                     <RegisterVehicleModal onSubmit={() => vehiclesData.update()} />
                 }
             />
-            
+
             <LayoutColumn size={1}>
                 <div className="mb-6">
                     <Input
                         label=""
-                        placeholder="🔍 Buscar por placa, marca o modelo..."
+                        placeholder="🔍 Buscar por placa, cliente, marca o modelo..."
                         value={search}
                         onChange={(e) => setSearch((e.target as HTMLInputElement).value)}
                     />
@@ -168,7 +169,7 @@ const VehiclesList = () => {
 
             {!vehiclesData.loading && filteredVehicles.length === 0 && (
                 <LayoutColumn size={1}>
-                    <motion.div 
+                    <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         className="text-center py-16"
@@ -178,8 +179,8 @@ const VehiclesList = () => {
                             {search ? 'No se encontraron vehículos' : 'Sin vehículos registrados'}
                         </h3>
                         <p className="text-gray-500">
-                            {search 
-                                ? 'Intenta con otros términos de búsqueda' 
+                            {search
+                                ? 'Intenta con otros términos de búsqueda'
                                 : 'Registra tu primer vehículo usando el botón "Nuevo Vehículo"'}
                         </p>
                     </motion.div>
@@ -197,7 +198,7 @@ const VehiclesList = () => {
                     >
                         <div className="flex items-start justify-between mb-4">
                             <div className="flex items-center gap-3">
-                                <div 
+                                <div
                                     className="w-4 h-4 rounded-full ring-2 ring-offset-2 ring-gray-200"
                                     style={{ backgroundColor: getColorHex(vehicle.data.color) }}
                                 />
@@ -214,11 +215,16 @@ const VehiclesList = () => {
                             {vehicle.data.plate}
                         </div>
 
-                        <div className="space-y-2">
-                            <h3 className="font-semibold text-gray-800 text-lg">
+                        <div className="space-y-1">
+                            <h3 className="font-semibold text-gray-800 text-lg leading-tight">
                                 {getBrandLabel(vehicle.data.brand, vehicle.data.customBrand)} {getModelLabel(vehicle.data.brand, vehicle.data.model, vehicle.data.customModel)}
                             </h3>
-                            <p className="text-gray-500 text-sm">
+                            {vehicle.data.client && (
+                                <p className="text-gray-600 text-sm font-medium">
+                                    👤 {vehicle.data.client}
+                                </p>
+                            )}
+                            <p className="text-gray-500 text-xs">
                                 Año: {vehicle.data.year}
                             </p>
                         </div>
@@ -291,6 +297,7 @@ const RegisterVehicleModal = ({ onSubmit }: { onSubmit: () => void }) => {
                 type: 'vehicles.v1',
                 data: {
                     plate: data.plate.toUpperCase().trim(),
+                    client: data.client?.trim(),
                     brand: data.brand,
                     customBrand: data.brand === 'other' ? data.customBrand?.trim() : undefined,
                     model: data.model,
@@ -342,6 +349,13 @@ const RegisterVehicleModal = ({ onSubmit }: { onSubmit: () => void }) => {
                         label="Placa *"
                         placeholder="ABC-1234"
                         error={errors.plate?.message}
+                    />
+                    <Input
+                        {...register('client', {
+                        })}
+                        label="Cliente"
+                        placeholder="Juan Pérez"
+                        error={errors.client?.message}
                     />
                     <Input
                         {...register('vin')}
