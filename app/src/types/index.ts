@@ -31,6 +31,7 @@ declare global {
             status: 'active' | 'inactive' | 'sold',
             tireType?: string
             filterType?: string
+            beneficiaryId?: number
             serviceRecords?: ServiceRecord[]
         }
     }
@@ -49,6 +50,7 @@ declare global {
         notes?: string
         tireType?: string
         filterType?: string
+        beneficiaryId?: number
     }
 
     export type InvoiceItem = {
