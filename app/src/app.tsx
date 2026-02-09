@@ -10,6 +10,8 @@ import { useLocalStorage } from '@bitnation-dev/management/hooks/local-storage'
 import { LayoutGrid } from '@bitnation-dev/management/components/layout/layout-grid'
 import { UserProvider } from '@bitnation-dev/management/hooks/user'
 import { ThemeProvider } from '@bitnation-dev/management/src/provider/theme'
+import { Forms } from './components/forms'
+
 
 const GlobalStyle = createGlobalStyle`
 :root {
@@ -89,6 +91,7 @@ export const Root = () => {
             <ModalProvider>
                 <UserProvider defaultRedirectPath={basePath}>
                     <GestionoProvider pathname="/">
+                        <Forms.Modals />
                         <LayoutGrid>
                             <Switch>
                                 <Route path={basePath} component={VehiclesList} />

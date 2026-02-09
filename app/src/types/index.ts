@@ -17,6 +17,7 @@ declare global {
         id: number
         data: {
             plate: string
+            client?: string
             brand: string
             customBrand?: string
             model: string
@@ -30,12 +31,14 @@ declare global {
             status: 'active' | 'inactive' | 'sold',
             tireType?: string
             filterType?: string
+            beneficiaryId?: number
             serviceRecords?: ServiceRecord[]
         }
     }
 
     export type VehicleFormData = {
         plate: string
+        client: string
         brand: string
         customBrand?: string
         model: string
@@ -47,6 +50,7 @@ declare global {
         notes?: string
         tireType?: string
         filterType?: string
+        beneficiaryId?: number
     }
 
     export type InvoiceItem = {
@@ -85,4 +89,4 @@ declare global {
     }
 }
 
-export {}
+export { }

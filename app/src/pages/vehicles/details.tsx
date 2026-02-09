@@ -169,6 +169,8 @@ const VehicleDetails = () => {
     // Fetch invoiced items for this vehicle
     const [invoicedItems, setInvoicedItems] = useState<PendingRecordItemResource[]>([])
     const [invoicedItemsLoading, setInvoicedItemsLoading] = useState(false)
+    const [beneficiaryData, setBeneficiaryData] = useState<any>(null)
+    const [beneficiaryDataLoading, setBeneficiaryDataLoading] = useState(false)
 
     useEffect(() => {
         if (!vehicle?.data.plate) return
@@ -197,6 +199,25 @@ const VehicleDetails = () => {
 
         fetchInvoicedItems()
     }, [vehicle?.data.plate])
+
+    useEffect(() => {
+        if (!vehicle?.data) return
+        const fetchBeneficiary = async () => {
+            try {
+                const response = await Gestiono.getBeneficiaryById({
+                    beneficiaryId: vehicle?.data.beneficiaryId || 0
+                })
+                setBeneficiaryData(response || null)
+            } catch (error) {
+                console.error('Error fetching beneficiary:', error)
+                setBeneficiaryData(null)
+            } finally {
+                setBeneficiaryDataLoading(false)
+            }
+        }
+
+        fetchBeneficiary()
+    }, [])
 
     const handleDelete = useCallback(async () => {
         if (!vehicle) return
@@ -345,6 +366,13 @@ const VehicleDetails = () => {
                             value={format(new Date(vehicle.data.registeredAt), "d 'de' MMMM, yyyy 'a las' HH:mm", { locale: es })}
                             icon="📅"
                         />
+                        {vehicle.data.beneficiaryId && (
+                            <InfoItem
+                                label="Cliente"
+                                value={beneficiaryDataLoading ? 'Cargando...' : ((beneficiaryData as any)?.name || `#${vehicle.data.beneficiaryId}`)}
+                                icon="👤"
+                            />
+                        )}
 
                         {vehicle.data.notes && (
                             <div className="mt-4 pt-4 border-t border-gray-100">
@@ -1314,8 +1342,8 @@ const ServiceHistorySection = ({
                     <button
                         onClick={() => setSelectedCategory('all')}
                         className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${selectedCategory === 'all'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                             }`}
                     >
                         Todos ({serviceRecords.length})
@@ -1325,8 +1353,8 @@ const ServiceHistorySection = ({
                             key={cat.value}
                             onClick={() => setSelectedCategory(cat.value)}
                             className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${selectedCategory === cat.value
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                 }`}
                         >
                             {cat.icon} {cat.label} ({categorySummary[cat.value]})

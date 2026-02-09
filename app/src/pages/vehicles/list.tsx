@@ -14,6 +14,7 @@ import { BreadcrumbAndHeader } from "@bitnation-dev/management/components/breadc
 import { useGestiono } from "@bitnation-dev/management/gestiono"
 import { useRouter } from "../../components/router"
 import { motion } from "framer-motion"
+import { BeneficiarySelect } from "@bitnation-dev/management/src/forms/beneficiary-select"
 
 const appId = parseInt(process.env.GESTIONO_APP_ID || '0')
 const basePath = `/app/${process.env.GESTIONO_APP_ID}`
@@ -119,46 +120,46 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 
 const ITEMS_PER_PAGE = 9
 
-const PaginationButtons = ({ 
-    currentPage, 
-    totalPages, 
-    onPageChange 
-}: { 
+const PaginationButtons = ({
+    currentPage,
+    totalPages,
+    onPageChange
+}: {
     currentPage: number
     totalPages: number
-    onPageChange: (page: number) => void 
+    onPageChange: (page: number) => void
 }) => {
     const getVisiblePages = () => {
         const delta = 2 // pages to show around current
         const pages: (number | 'ellipsis')[] = []
-        
+
         // Always show first page
         pages.push(1)
-        
+
         // Calculate range around current page
         const rangeStart = Math.max(2, currentPage - delta)
         const rangeEnd = Math.min(totalPages - 1, currentPage + delta)
-        
+
         // Add ellipsis after first page if needed
         if (rangeStart > 2) {
             pages.push('ellipsis')
         }
-        
+
         // Add pages in range
         for (let i = rangeStart; i <= rangeEnd; i++) {
             pages.push(i)
         }
-        
+
         // Add ellipsis before last page if needed
         if (rangeEnd < totalPages - 1) {
             pages.push('ellipsis')
         }
-        
+
         // Always show last page (if more than 1 page)
         if (totalPages > 1) {
             pages.push(totalPages)
         }
-        
+
         return pages
     }
 
@@ -166,7 +167,7 @@ const PaginationButtons = ({
 
     return (
         <>
-            {visiblePages.map((page, idx) => 
+            {visiblePages.map((page, idx) =>
                 page === 'ellipsis' ? (
                     <span key={`ellipsis-${idx}`} className="px-2 text-gray-400">
                         ...
@@ -175,11 +176,10 @@ const PaginationButtons = ({
                     <button
                         key={page}
                         onClick={() => onPageChange(page)}
-                        className={`w-10 h-10 rounded-lg font-medium transition-all ${
-                            currentPage === page
-                                ? 'bg-blue-600 text-white shadow-md'
-                                : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
-                        }`}
+                        className={`w-10 h-10 rounded-lg font-medium transition-all ${currentPage === page
+                            ? 'bg-blue-600 text-white shadow-md'
+                            : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                            }`}
                     >
                         {page}
                     </button>
@@ -193,7 +193,7 @@ const VehiclesList = () => {
     const router = useRouter()
     const [search, setSearch] = useState('')
     const [currentPage, setCurrentPage] = useState(1)
-    
+
     const vehiclesData = useGestiono('getAppData', {
         appId,
         type: 'vehicles.v1'
@@ -203,7 +203,7 @@ const VehiclesList = () => {
     })
 
     const vehicles = (vehiclesData.data as unknown as Vehicle[] | undefined) || []
-    
+
     const filteredVehicles = vehicles.filter(vehicle => {
         if (!search) return true
         const searchLower = search.toLowerCase()
@@ -235,7 +235,7 @@ const VehiclesList = () => {
                     <RegisterVehicleModal onSubmit={() => vehiclesData.update()} />
                 }
             />
-            
+
             <LayoutColumn size={1}>
                 <div className="mb-6">
                     <Input
@@ -251,7 +251,7 @@ const VehiclesList = () => {
 
             {!vehiclesData.loading && filteredVehicles.length === 0 && (
                 <LayoutColumn size={1}>
-                    <motion.div 
+                    <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         className="text-center py-16"
@@ -261,8 +261,8 @@ const VehiclesList = () => {
                             {search ? 'No se encontraron vehículos' : 'Sin vehículos registrados'}
                         </h3>
                         <p className="text-gray-500">
-                            {search 
-                                ? 'Intenta con otros términos de búsqueda' 
+                            {search
+                                ? 'Intenta con otros términos de búsqueda'
                                 : 'Registra tu primer vehículo usando el botón "Nuevo Vehículo"'}
                         </p>
                     </motion.div>
@@ -280,7 +280,7 @@ const VehiclesList = () => {
                     >
                         <div className="flex items-start justify-between mb-4">
                             <div className="flex items-center gap-3">
-                                <div 
+                                <div
                                     className="w-4 h-4 rounded-full ring-2 ring-offset-2 ring-gray-200"
                                     style={{ backgroundColor: getColorHex(vehicle.data.color) }}
                                 />
@@ -327,12 +327,12 @@ const VehiclesList = () => {
                         >
                             ← Anterior
                         </button>
-                        
+
                         <div className="flex items-center gap-1">
-                            <PaginationButtons 
-                                currentPage={currentPage} 
-                                totalPages={totalPages} 
-                                onPageChange={setCurrentPage} 
+                            <PaginationButtons
+                                currentPage={currentPage}
+                                totalPages={totalPages}
+                                onPageChange={setCurrentPage}
                             />
                         </div>
 
@@ -420,7 +420,8 @@ const RegisterVehicleModal = ({ onSubmit }: { onSubmit: () => void }) => {
                     tireType: data.tireType?.trim() || undefined,
                     filterType: data.filterType?.trim() || undefined,
                     registeredAt: new Date().toISOString(),
-                    status: 'active' as const
+                    status: 'active' as const,
+                    beneficiaryId: data.beneficiaryId,
                 }
             })
 
@@ -483,6 +484,14 @@ const RegisterVehicleModal = ({ onSubmit }: { onSubmit: () => void }) => {
                         error={errors.vin?.message}
                     />
                 </div>
+                <BeneficiarySelect
+                    setValue={setValue as any}
+                    id="beneficiaryId"
+                    value={watch('beneficiaryId')?.toString() || ''}
+                    error={errors.beneficiaryId?.message}
+                    label="Cliente *"
+                    type="CLIENT"
+                />
 
                 {/* Brand */}
                 <div className="grid grid-cols-2 gap-4">
