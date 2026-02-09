@@ -1,5 +1,5 @@
 'use client'
-import React, { useCallback, useState } from "react"
+import React, { startTransition, useCallback, useState } from "react"
 import Button from "@bitnation-dev/components/dist/components/Button"
 import { ButtonModal } from "@bitnation-dev/components/dist/components/Modal/Modal"
 import { useModal } from "@bitnation-dev/components/dist/components/Modal/Provider"
@@ -117,10 +117,83 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
     sold: { label: 'Vendido', color: 'bg-slate-500' },
 }
 
+const ITEMS_PER_PAGE = 9
+
+const PaginationButtons = ({ 
+    currentPage, 
+    totalPages, 
+    onPageChange 
+}: { 
+    currentPage: number
+    totalPages: number
+    onPageChange: (page: number) => void 
+}) => {
+    const getVisiblePages = () => {
+        const delta = 2 // pages to show around current
+        const pages: (number | 'ellipsis')[] = []
+        
+        // Always show first page
+        pages.push(1)
+        
+        // Calculate range around current page
+        const rangeStart = Math.max(2, currentPage - delta)
+        const rangeEnd = Math.min(totalPages - 1, currentPage + delta)
+        
+        // Add ellipsis after first page if needed
+        if (rangeStart > 2) {
+            pages.push('ellipsis')
+        }
+        
+        // Add pages in range
+        for (let i = rangeStart; i <= rangeEnd; i++) {
+            pages.push(i)
+        }
+        
+        // Add ellipsis before last page if needed
+        if (rangeEnd < totalPages - 1) {
+            pages.push('ellipsis')
+        }
+        
+        // Always show last page (if more than 1 page)
+        if (totalPages > 1) {
+            pages.push(totalPages)
+        }
+        
+        return pages
+    }
+
+    const visiblePages = getVisiblePages()
+
+    return (
+        <>
+            {visiblePages.map((page, idx) => 
+                page === 'ellipsis' ? (
+                    <span key={`ellipsis-${idx}`} className="px-2 text-gray-400">
+                        ...
+                    </span>
+                ) : (
+                    <button
+                        key={page}
+                        onClick={() => onPageChange(page)}
+                        className={`w-10 h-10 rounded-lg font-medium transition-all ${
+                            currentPage === page
+                                ? 'bg-blue-600 text-white shadow-md'
+                                : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                        }`}
+                    >
+                        {page}
+                    </button>
+                )
+            )}
+        </>
+    )
+}
+
 const VehiclesList = () => {
     const router = useRouter()
     const [search, setSearch] = useState('')
-
+    const [currentPage, setCurrentPage] = useState(1)
+    
     const vehiclesData = useGestiono('getAppData', {
         appId,
         type: 'vehicles.v1'
@@ -130,7 +203,7 @@ const VehiclesList = () => {
     })
 
     const vehicles = (vehiclesData.data as unknown as Vehicle[] | undefined) || []
-
+    
     const filteredVehicles = vehicles.filter(vehicle => {
         if (!search) return true
         const searchLower = search.toLowerCase()
@@ -138,11 +211,20 @@ const VehiclesList = () => {
         const modelLabel = getModelLabel(vehicle.data.brand, vehicle.data.model, vehicle.data.customModel)
         return (
             vehicle.data.plate.toLowerCase().includes(searchLower) ||
-            (vehicle.data.client?.toLowerCase().includes(searchLower)) ||
             brandLabel.toLowerCase().includes(searchLower) ||
             modelLabel.toLowerCase().includes(searchLower)
         )
     })
+
+    // Pagination logic
+    const totalPages = Math.ceil(filteredVehicles.length / ITEMS_PER_PAGE)
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+    const paginatedVehicles = filteredVehicles.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+
+    // Reset to page 1 when search changes
+    React.useEffect(() => {
+        setCurrentPage(1)
+    }, [search])
 
     return (
         <>
@@ -153,12 +235,12 @@ const VehiclesList = () => {
                     <RegisterVehicleModal onSubmit={() => vehiclesData.update()} />
                 }
             />
-
+            
             <LayoutColumn size={1}>
                 <div className="mb-6">
                     <Input
                         label=""
-                        placeholder="🔍 Buscar por placa, cliente, marca o modelo..."
+                        placeholder="🔍 Buscar por placa, marca o modelo..."
                         value={search}
                         onChange={(e) => setSearch((e.target as HTMLInputElement).value)}
                     />
@@ -169,7 +251,7 @@ const VehiclesList = () => {
 
             {!vehiclesData.loading && filteredVehicles.length === 0 && (
                 <LayoutColumn size={1}>
-                    <motion.div
+                    <motion.div 
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         className="text-center py-16"
@@ -179,16 +261,16 @@ const VehiclesList = () => {
                             {search ? 'No se encontraron vehículos' : 'Sin vehículos registrados'}
                         </h3>
                         <p className="text-gray-500">
-                            {search
-                                ? 'Intenta con otros términos de búsqueda'
+                            {search 
+                                ? 'Intenta con otros términos de búsqueda' 
                                 : 'Registra tu primer vehículo usando el botón "Nuevo Vehículo"'}
                         </p>
                     </motion.div>
                 </LayoutColumn>
             )}
 
-            {filteredVehicles.map((vehicle, index) => (
-                <LayoutColumn size={3} key={vehicle.id}>
+            {paginatedVehicles.map((vehicle, index) => (
+                <LayoutColumn size={3} key={`vehicle-${vehicle.id}`}>
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -198,7 +280,7 @@ const VehiclesList = () => {
                     >
                         <div className="flex items-start justify-between mb-4">
                             <div className="flex items-center gap-3">
-                                <div
+                                <div 
                                     className="w-4 h-4 rounded-full ring-2 ring-offset-2 ring-gray-200"
                                     style={{ backgroundColor: getColorHex(vehicle.data.color) }}
                                 />
@@ -215,16 +297,11 @@ const VehiclesList = () => {
                             {vehicle.data.plate}
                         </div>
 
-                        <div className="space-y-1">
-                            <h3 className="font-semibold text-gray-800 text-lg leading-tight">
+                        <div className="space-y-2">
+                            <h3 className="font-semibold text-gray-800 text-lg">
                                 {getBrandLabel(vehicle.data.brand, vehicle.data.customBrand)} {getModelLabel(vehicle.data.brand, vehicle.data.model, vehicle.data.customModel)}
                             </h3>
-                            {vehicle.data.client && (
-                                <p className="text-gray-600 text-sm font-medium">
-                                    👤 {vehicle.data.client}
-                                </p>
-                            )}
-                            <p className="text-gray-500 text-xs">
+                            <p className="text-gray-500 text-sm">
                                 Año: {vehicle.data.year}
                             </p>
                         </div>
@@ -238,6 +315,40 @@ const VehiclesList = () => {
                     </motion.div>
                 </LayoutColumn>
             ))}
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+                <LayoutColumn size={1}>
+                    <div className="flex items-center justify-center gap-2 mt-8 mb-4">
+                        <button
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                            disabled={currentPage === 1}
+                            className="px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                        >
+                            ← Anterior
+                        </button>
+                        
+                        <div className="flex items-center gap-1">
+                            <PaginationButtons 
+                                currentPage={currentPage} 
+                                totalPages={totalPages} 
+                                onPageChange={setCurrentPage} 
+                            />
+                        </div>
+
+                        <button
+                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                            disabled={currentPage === totalPages}
+                            className="px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                        >
+                            Siguiente →
+                        </button>
+                    </div>
+                    <p className="text-center text-sm text-gray-500">
+                        Mostrando {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, filteredVehicles.length)} de {filteredVehicles.length} vehículos
+                    </p>
+                </LayoutColumn>
+            )}
         </>
     )
 }
@@ -297,7 +408,6 @@ const RegisterVehicleModal = ({ onSubmit }: { onSubmit: () => void }) => {
                 type: 'vehicles.v1',
                 data: {
                     plate: data.plate.toUpperCase().trim(),
-                    client: data.client?.trim(),
                     brand: data.brand,
                     customBrand: data.brand === 'other' ? data.customBrand?.trim() : undefined,
                     model: data.model,
@@ -307,6 +417,8 @@ const RegisterVehicleModal = ({ onSubmit }: { onSubmit: () => void }) => {
                     customColor: data.color === 'other' ? data.customColor?.trim() : undefined,
                     vin: data.vin?.trim() || undefined,
                     notes: data.notes?.trim() || undefined,
+                    tireType: data.tireType?.trim() || undefined,
+                    filterType: data.filterType?.trim() || undefined,
                     registeredAt: new Date().toISOString(),
                     status: 'active' as const
                 }
@@ -329,8 +441,22 @@ const RegisterVehicleModal = ({ onSubmit }: { onSubmit: () => void }) => {
 
     const currentYear = new Date().getFullYear()
 
+    const handleClose = useCallback(() => {
+        startTransition(() => {
+            modal?.close()
+        })
+    }, [modal])
+
     return (
-        <ButtonModal id="register-vehicle" cta="Nuevo Vehículo">
+        <ButtonModal id="register-vehicle" cta="Nuevo Vehículo" className="hide-modal-close">
+            <button
+                type="button"
+                onClick={handleClose}
+                className="absolute top-2 right-3 text-2xl text-gray-500 hover:text-gray-800 z-10"
+                aria-label="Cerrar"
+            >
+                ×
+            </button>
             <h2 className="text-2xl font-bold mb-2">Registrar Vehículo</h2>
             <p className="text-sm text-gray-500 mb-6">
                 Ingresa los datos del vehículo para agregarlo al registro.
@@ -349,13 +475,6 @@ const RegisterVehicleModal = ({ onSubmit }: { onSubmit: () => void }) => {
                         label="Placa *"
                         placeholder="ABC-1234"
                         error={errors.plate?.message}
-                    />
-                    <Input
-                        {...register('client', {
-                        })}
-                        label="Cliente"
-                        placeholder="Juan Pérez"
-                        error={errors.client?.message}
                     />
                     <Input
                         {...register('vin')}
@@ -492,6 +611,21 @@ const RegisterVehicleModal = ({ onSubmit }: { onSubmit: () => void }) => {
                         error={errors.customColor?.message}
                     />
                 )}
+
+                <div className="grid grid-cols-2 gap-4">
+                    <Input
+                        {...register('tireType')}
+                        label="Tipo de Goma"
+                        placeholder="Ej: 205/55R16"
+                        error={errors.tireType?.message}
+                    />
+                    <Input
+                        {...register('filterType')}
+                        label="Tipo de Filtro"
+                        placeholder="Ej: Mann HU 816 x"
+                        error={errors.filterType?.message}
+                    />
+                </div>
 
                 <Input
                     {...register('notes')}

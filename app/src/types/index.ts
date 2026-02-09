@@ -1,6 +1,18 @@
 import "@bitnation-dev/management/dist/common"
 
 declare global {
+    export type ServiceCategory = 'fluids' | 'filters' | 'parts' | 'services'
+
+    export type ServiceRecord = {
+        id: string
+        category: ServiceCategory
+        itemType: string
+        brand: string
+        date: string
+        km: number
+        notes?: string
+    }
+
     export type Vehicle = {
         id: number
         data: {
@@ -16,7 +28,10 @@ declare global {
             vin?: string
             notes?: string
             registeredAt: string
-            status: 'active' | 'inactive' | 'sold'
+            status: 'active' | 'inactive' | 'sold',
+            tireType?: string
+            filterType?: string
+            serviceRecords?: ServiceRecord[]
         }
     }
 
@@ -32,6 +47,8 @@ declare global {
         customColor?: string
         vin?: string
         notes?: string
+        tireType?: string
+        filterType?: string
     }
 
     export type InvoiceItem = {
