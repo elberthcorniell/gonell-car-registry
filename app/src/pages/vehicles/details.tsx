@@ -1,5 +1,5 @@
 'use client'
-import React, { startTransition, useCallback, useEffect, useMemo, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useState } from "react"
 import Button from "@bitnation-dev/components/dist/components/Button"
 import Modal, { ButtonModal } from "@bitnation-dev/components/dist/components/Modal/Modal"
 import { useModal } from "@bitnation-dev/components/dist/components/Modal/Provider"
@@ -18,6 +18,12 @@ import { es } from "date-fns/locale"
 import { LinkConstants } from "@bitnation-dev/management/consts/links"
 import { VEHICLE_BRANDS, VEHICLE_MODELS, VEHICLE_COLORS, getBrandLabel, getModelLabel, getColorHex } from "./list"
 import { AdvancedSearchFilter, GestionoPendingRecord } from "node_modules/@bitnation-dev/management/dist/common"
+import { BeneficiarySelect } from "@bitnation-dev/management/src/forms/beneficiary-select"
+import { TrashIcon } from "@bitnation-dev/management/icons"
+import { ResourceWidget } from "@bitnation-dev/management/components/widgets"
+import { ResourceSelect } from "@bitnation-dev/management/src/forms/resource-select"
+import { BalanceCard } from "@bitnation-dev/management/components/balance-card"
+import { Badge } from "@bitnation-dev/management/components/badge"
 
 type InvoiceState = "PENDING" | "ARCHIVED" | "COMPLETED" | "ACTIVE" | "PAUSED" | "CANCELED" | "PAST_DUE" | "UNPAID" | "ENDED" | "INVOICE_MISSING"
 
@@ -42,10 +48,7 @@ type PendingRecordItem = Omit<GestionoPendingRecord, "payments" | "labels"> & {
         unit: string
     }[]
 }
-import { TrashIcon } from "@bitnation-dev/management/icons"
-import { ResourceWidget } from "@bitnation-dev/management/components/widgets"
-import { BalanceCard } from "@bitnation-dev/management/components/balance-card"
-import { Badge } from "@bitnation-dev/management/components/badge"
+
 
 const appId = parseInt(process.env.GESTIONO_APP_ID || '0')
 const basePath = `/app/${process.env.GESTIONO_APP_ID}`
@@ -170,7 +173,7 @@ const VehicleDetails = () => {
     const [invoicedItems, setInvoicedItems] = useState<PendingRecordItemResource[]>([])
     const [invoicedItemsLoading, setInvoicedItemsLoading] = useState(false)
     const [beneficiaryData, setBeneficiaryData] = useState<any>(null)
-    const [beneficiaryDataLoading, setBeneficiaryDataLoading] = useState(false)
+    const [beneficiaryDataLoading, setBeneficiaryDataLoading] = useState(true)
 
     useEffect(() => {
         if (!vehicle?.data.plate) return
@@ -201,11 +204,15 @@ const VehicleDetails = () => {
     }, [vehicle?.data.plate])
 
     useEffect(() => {
-        if (!vehicle?.data) return
+        if (!vehicle?.data?.beneficiaryId) {
+            setBeneficiaryDataLoading(false)
+            return
+        }
+        setBeneficiaryDataLoading(true)
         const fetchBeneficiary = async () => {
             try {
                 const response = await Gestiono.getBeneficiaryById({
-                    beneficiaryId: vehicle?.data.beneficiaryId || 0
+                    beneficiaryId: vehicle.data.beneficiaryId!
                 })
                 setBeneficiaryData(response || null)
             } catch (error) {
@@ -217,7 +224,7 @@ const VehicleDetails = () => {
         }
 
         fetchBeneficiary()
-    }, [])
+    }, [vehicle?.data?.beneficiaryId])
 
     const handleDelete = useCallback(async () => {
         if (!vehicle) return
@@ -304,7 +311,29 @@ const VehicleDetails = () => {
                         <EditVehicleModal vehicle={vehicle} onSubmit={() => vehiclesData.update()} />
 
                         <Button fit onClick={() => {
-                            window.location.href = `/accounting/pending-records/add?isSell=true&clientdata.plate=${vehicle.data.plate}`
+                            const params = new URLSearchParams({
+                                isSell: 'true',
+                                'clientdata.plate': vehicle.data.plate,
+                                'clientdata.color': colorDisplay,
+                                'clientdata.brand': brandDisplay,
+                                'clientdata.model': modelDisplay,
+                            })
+                            if (vehicle.data.vin) {
+                                params.set('clientdata.fileNumber', vehicle.data.vin)
+                            }
+                            // Get latest mileage from service records
+                            const latestRecord = vehicle.data.serviceRecords
+                                ?.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())?.[0]
+                            if (latestRecord?.km) {
+                                params.set('clientdata.mileage', latestRecord.km.toString())
+                            }
+                            if (latestRecord?.resourceId) {
+                                params.set('resourceId', latestRecord.resourceId.toString())
+                            }
+                            if (vehicle.data.beneficiaryId) {
+                                params.set('beneficiaryId', vehicle.data.beneficiaryId.toString())
+                            }
+                            window.location.href = `/accounting/pending-records/add?${params.toString()}`
                         }}>
                             Facturar
                         </Button>
@@ -668,6 +697,7 @@ const EditVehicleModal = ({ vehicle, onSubmit }: { vehicle: Vehicle; onSubmit: (
             notes: vehicle.data.notes || '',
             tireType: vehicle.data.tireType || '',
             filterType: vehicle.data.filterType || '',
+            beneficiaryId: vehicle.data.beneficiaryId,
         }
     })
 
@@ -697,6 +727,7 @@ const EditVehicleModal = ({ vehicle, onSubmit }: { vehicle: Vehicle; onSubmit: (
                     notes: data.notes?.trim() || undefined,
                     tireType: data.tireType?.trim() || undefined,
                     filterType: data.filterType?.trim() || undefined,
+                    beneficiaryId: data.beneficiaryId,
                 }
             })
 
@@ -717,9 +748,7 @@ const EditVehicleModal = ({ vehicle, onSubmit }: { vehicle: Vehicle; onSubmit: (
     const currentYear = new Date().getFullYear()
 
     const handleClose = useCallback(() => {
-        startTransition(() => {
-            modal?.close()
-        })
+        modal?.close()
     }, [modal])
 
     return (
@@ -758,6 +787,14 @@ const EditVehicleModal = ({ vehicle, onSubmit }: { vehicle: Vehicle; onSubmit: (
                         error={errors.vin?.message}
                     />
                 </div>
+                <BeneficiarySelect
+                    setValue={setValue as any}
+                    id="beneficiaryId"
+                    value={watch('beneficiaryId')?.toString() || ''}
+                    error={errors.beneficiaryId?.message}
+                    label="Cliente"
+                    type="CLIENT"
+                />
 
                 {/* Brand */}
                 <div className="grid grid-cols-2 gap-4">
@@ -921,7 +958,7 @@ const EditVehicleModal = ({ vehicle, onSubmit }: { vehicle: Vehicle; onSubmit: (
 type ServiceFormData = {
     category: ServiceCategory | ''
     itemType: string
-    brand: string
+    resourceId?: number
     date: string
     km: string
     notes?: string
@@ -951,7 +988,7 @@ const AddServiceModal = ({
         defaultValues: {
             category: '',
             itemType: '',
-            brand: '',
+            resourceId: undefined,
             date: lastRecord?.date || format(new Date(), 'yyyy-MM-dd'),
             km: lastRecord?.km?.toString() || '',
             notes: '',
@@ -973,7 +1010,7 @@ const AddServiceModal = ({
             id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             category: data.category as ServiceCategory,
             itemType: data.itemType,
-            brand: data.brand.trim(),
+            resourceId: data.resourceId,
             date: data.date,
             km: parseInt(data.km) || 0,
             notes: data.notes?.trim() || undefined,
@@ -998,7 +1035,7 @@ const AddServiceModal = ({
             reset({
                 category: '',
                 itemType: '',
-                brand: '',
+                resourceId: undefined,
                 date: newRecord.date,
                 km: newRecord.km.toString(),
                 notes: '',
@@ -1016,9 +1053,7 @@ const AddServiceModal = ({
     }, [vehicle, onSubmit, modal, alert, reset])
 
     const handleClose = useCallback(() => {
-        startTransition(() => {
-            modal?.close()
-        })
+        modal?.close()
     }, [modal])
 
     return (
@@ -1086,13 +1121,11 @@ const AddServiceModal = ({
                     </div>
                 </div>
 
-                <Input
-                    {...register('brand', {
-                        required: 'La marca/producto es requerida'
-                    })}
+                <ResourceSelect
                     label="Marca / Producto *"
-                    placeholder="Ej: Mobil 1, Prestone, Bosch..."
-                    error={errors.brand?.message}
+                    value={watch('resourceId')}
+                    onSelect={(resourceId) => setValue('resourceId', resourceId)}
+                    error={errors.resourceId?.message}
                 />
 
                 <div className="grid grid-cols-2 gap-4">
@@ -1175,9 +1208,13 @@ const ServiceRecordCard = ({
                     </div>
                     <div className="flex items-center gap-4">
                         <div className="text-right">
-                            <p className="text-sm font-medium text-gray-700">
-                                {record.brand}
-                            </p>
+                            {record.resourceId ? (
+                                <ResourceWidget id={record.resourceId} />
+                            ) : (
+                                <p className="text-sm font-medium text-gray-700">
+                                    {record.brand || '-'}
+                                </p>
+                            )}
                             <p className="text-xs text-gray-500">
                                 {format(new Date(record.date), "d MMM yyyy", { locale: es })}
                             </p>
@@ -1213,7 +1250,11 @@ const ServiceRecordCard = ({
                         </div>
                         <div>
                             <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Marca/Producto</p>
-                            <p className="text-sm text-gray-700 font-medium">{record.brand}</p>
+                            {record.resourceId ? (
+                                <ResourceWidget id={record.resourceId} />
+                            ) : (
+                                <p className="text-sm text-gray-700 font-medium">{record.brand || '-'}</p>
+                            )}
                         </div>
                     </div>
 
