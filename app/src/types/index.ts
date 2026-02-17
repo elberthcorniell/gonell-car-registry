@@ -7,7 +7,8 @@ declare global {
         id: string
         category: ServiceCategory
         itemType: string
-        brand: string
+        brand?: string
+        resourceId?: number
         date: string
         km: number
         notes?: string
